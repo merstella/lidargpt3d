@@ -1,0 +1,6 @@
+datasets:
+  NuScenes_qa:
+    batch_size: 6  # tuỳ bạn
+    text_processor:
+      train:
+        name: "blip_caption"  # hoặc processor khác nếu bạn muốn

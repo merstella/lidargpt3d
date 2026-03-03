@@ -1,0 +1,14 @@
+datasets:
+  NuScenes_qa:
+    data_type: point_cloud
+    build_info:
+      data_root: /data/nuscenes
+      version: v1.0-trainval
+
+      ann_path: /data/nuscenes/ann/nuscenesqa_train.jsonl
+
+      pointnum: 8192
+      normalize_pc: true
+      use_intensity: true
+      use_time_or_ring: true
+      return_dim: 6

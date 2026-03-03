@@ -1,0 +1,6 @@
+datasets:
+  NuScenes_caption:
+    batch_size: 9
+    text_processor:
+      train:
+        name: "blip_caption"

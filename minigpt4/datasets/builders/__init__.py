@@ -14,14 +14,18 @@ ObjaverseBuilder_mutil_round,
 )
 from minigpt4.common.registry import registry
 
-
+from minigpt4.datasets.builders.nuscenes_builder import (
+    NuScenesCaptionBuilder,
+    NuScenesQABuilder,
+)
 __all__ = [
     "ObjaverseBuilder_brief",
     "ObjaverseBuilder_detailed",
     "ObjaverseBuilder_single_round",
     "ObjaverseBuilder_mutil_round",
+    "NuScenesCaptionBuilder",
+    "NuScenesQABuilder",
 ]
-
 def load_dataset(name, cfg_path=None, vis_path=None, data_type=None):
     """
     Example
