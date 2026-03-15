@@ -3,6 +3,8 @@ __pycache__
 *.pyc
 *.egg-info
 dist
+venv/
+.venv/
 
 # Log
 *.log
@@ -11,6 +13,9 @@ dist
 
 # Data
 !**/alpaca-data-conversation.json
+ann/*.jsonl
+data/nucaption_*.json
+data/nuscenesqa_*.json
 
 # Editor
 .idea
