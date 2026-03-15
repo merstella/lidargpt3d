@@ -1,4 +1,3 @@
-# tools/dump_nusc_to_jsonl.py
 # Dump nuCaption + nuScenesQA into internal JSONL format (single-turn, keep all records)
 # - nuCaption: use answer_lidar
 # - keep prompts as-is (no sanitize)

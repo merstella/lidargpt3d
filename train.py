@@ -35,7 +35,7 @@ from minigpt4.processors import *
 from minigpt4.runners import *
 from minigpt4.tasks import *
 
-
+# choose the path to configuration file
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
 

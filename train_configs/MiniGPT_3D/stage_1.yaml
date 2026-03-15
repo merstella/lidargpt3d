@@ -1,3 +1,6 @@
+# the base model defaults come from minigpt_3d.yaml, but anything explicitly set in stage_1.yaml wins.
+# read model.arch -> find the registered model class -> ask that class for its default config path.
+# for ex, it goes like this: model class is minigpt_v2.py -> PRETRAINED_MODEL_CONFIG_DICT -> minigpt_3d.yaml
 model:
   arch: minigpt_3d
   model_type: pretrain
@@ -14,7 +17,8 @@ model:
   use_MQE: False  #  False: not use  query expert
   QFormer_lora_r: 0   # 0 : not use QFormer lora
 
-
+# dataset config duoc expand tu registered dataset builder default yaml, xong override boi stage yaml.
+# build_dataset_config: look the builder class -> ask the builder for the default config path -> merge that default yaml with the this dts config block!!
 datasets:
   Objaverse_brief:
     batch_size: 9   # 9
@@ -22,7 +26,7 @@ datasets:
       train:
         name: "blip_caption"
 
-
+# run yaml thi build config cho runner 
 run:
   task: image_text_pretrain
   # optimizer

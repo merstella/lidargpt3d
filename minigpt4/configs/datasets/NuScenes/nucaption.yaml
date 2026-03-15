@@ -2,11 +2,11 @@ datasets:
   NuScenes_caption:
     data_type: point_cloud
     build_info:
-      data_root: /data/nuscenes
+      data_root: ../nuscenes
       version: v1.0-trainval
 
       # dump nội bộ (jsonl hoặc json list)
-      ann_path: /data/nuscenes/ann/nucaption_train.jsonl
+      ann_path: ./ann/nucaption_train.jsonl
 
       pointnum: 8192
       normalize_pc: true

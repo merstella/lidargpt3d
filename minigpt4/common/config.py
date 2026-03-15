@@ -34,6 +34,8 @@ class Config:
                 model_config,  user_config
             )
         else:
+            # tu config tu lua chon, build config cho 4 loai:
+            
             runner_config = self.build_runner_config(config)
             model_config = self.build_model_config(config, **user_config)
             dataset_config = self.build_dataset_config(config)
@@ -45,8 +47,10 @@ class Config:
             # self._validate_runner_config(runner_config)
 
             # Override the default configuration with user options.
+            
+            # xong merge lai voi nhau
             self.config = OmegaConf.merge(
-                runner_config, model_config, dataset_config,evaluation_dataset_config, user_config
+                runner_config, model_config, dataset_config, evaluation_dataset_config, user_config
             )
 
     def _validate_runner_config(self, runner_config):
