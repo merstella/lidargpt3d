@@ -92,11 +92,8 @@ class Registry:
         """
 
         def wrap(model_cls):
-            from minigpt4.models import BaseModel
-
-            assert issubclass(
-                model_cls, BaseModel
-            ), "All models must inherit BaseModel class"
+            base_names = {base.__name__ for base in model_cls.__mro__}
+            assert "BaseModel" in base_names, "All models must inherit BaseModel class"
             if name in cls.mapping["model_name_mapping"]:
                 raise KeyError(
                     "Name '{}' already registered for {}.".format(

@@ -7,7 +7,7 @@ from minigpt4.common.config import Config
 
 # imports modules for registration
 from minigpt4.datasets.builders import *
-from minigpt4.models import *
+from minigpt4.models_new import *
 from minigpt4.processors import *
 from minigpt4.runners import *
 from minigpt4.tasks import *

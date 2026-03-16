@@ -15,7 +15,7 @@ import os
 import numpy as np
 import plotly.graph_objects as go
 from minigpt4.common.registry import registry
-from minigpt4.models.pointbert import misc
+from minigpt4.models_new.pointbert import misc
 
 tokenizer = AutoTokenizer.from_pretrained("./params_weight/Phi_2")
 

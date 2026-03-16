@@ -14,6 +14,10 @@ model:
   llama_model: "./params_weight/Phi_2"
   lora_r: 64
   lora_alpha: 16
+  pc_encoder_backend: "uni3d"
+  uni3d_ckpt_path: "./minigpt4/models_new/uni3d/weights/uni3dtiny/model.pt"
+  uni3d_timm_model: "eva02_tiny_patch14_224"
+  uni3d_drop_path_rate: 0.2
 
 
 preprocess:
