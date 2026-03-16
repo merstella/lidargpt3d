@@ -131,10 +131,11 @@ class NuScenesEvalDataset(Dataset):
         nusc,
         task_type,
         pointnum=8192,
-        normalize_pc=True,
+        normalize_pc=False,
         use_intensity=True,
         use_time_or_ring=True,
         return_dim=6,
+        feat_mode="const_0p4",
     ):
         self.records = records
         self.nusc = nusc
@@ -144,7 +145,9 @@ class NuScenesEvalDataset(Dataset):
         self.use_intensity = use_intensity
         self.use_time_or_ring = use_time_or_ring
         self.return_dim = return_dim
+        self.feat_mode = feat_mode
         self._lidar_path_cache = {}
+        self._validate_config()
 
     def __len__(self):
         return len(self.records)
@@ -167,38 +170,36 @@ class NuScenesEvalDataset(Dataset):
             raise ValueError(f"Unexpected lidar format for {lidar_path}, raw.size % 5 != 0")
         return raw.reshape(-1, 5)
 
-    def _build_pc_features(self, pts5):
-        xyz = pts5[:, 0:3]
-        intensity = pts5[:, 3:4] if self.use_intensity else np.zeros((pts5.shape[0], 1), np.float32)
-        extra = pts5[:, 4:5] if self.use_time_or_ring else np.zeros((pts5.shape[0], 1), np.float32)
-        pc6 = np.concatenate([xyz, intensity, extra, np.zeros_like(extra)], axis=1).astype(np.float32)
+    def _build_xyz_feat(self, pts5):
+        xyz = pts5[:, :3].astype(np.float32)
+        if self.feat_mode == "const_0p4":
+            feat = np.full((xyz.shape[0], 3), 0.4, dtype=np.float32)
+        else:
+            raise ValueError(f"Unsupported feat_mode: {self.feat_mode}")
+        return xyz, feat
 
-        if self.return_dim == 6:
-            return pc6
-        if self.return_dim < 6:
-            return pc6[:, : self.return_dim]
-
-        pad = np.zeros((pc6.shape[0], self.return_dim - 6), dtype=np.float32)
-        return np.concatenate([pc6, pad], axis=1)
-
-    def _sample_points(self, pc):
-        n = pc.shape[0]
+    def _sample_points(self, xyz, feat):
+        n = xyz.shape[0]
         if n >= self.pointnum:
             idx = np.random.choice(n, self.pointnum, replace=False)
         else:
             idx = np.random.choice(n, self.pointnum, replace=True)
-        return pc[idx]
+        return xyz[idx], feat[idx]
 
     @staticmethod
-    def _pc_norm(pc):
-        xyz = pc[:, :3]
-        other = pc[:, 3:]
+    def _pc_norm(xyz):
         centroid = np.mean(xyz, axis=0)
         xyz = xyz - centroid
         scale = np.max(np.sqrt(np.sum(xyz ** 2, axis=1)))
         if scale > 0:
             xyz = xyz / scale
-        return np.concatenate([xyz, other], axis=1)
+        return xyz
+
+    def _validate_config(self):
+        if self.return_dim != 6:
+            raise ValueError("Only return_dim=6 is supported in Uni3D-style eval mode.")
+        if self.feat_mode not in {"const_0p4"}:
+            raise ValueError(f"Unsupported feat_mode `{self.feat_mode}`.")
 
     def __getitem__(self, index):
         record = self.records[index]
@@ -207,13 +208,14 @@ class NuScenesEvalDataset(Dataset):
 
         lidar_path = self._get_lidar_path(sample_token)
         pts5 = self._read_lidar_bin(lidar_path)
-        pc = self._build_pc_features(pts5)
-        pc = self._sample_points(pc)
+        xyz, feat = self._build_xyz_feat(pts5)
+        xyz, feat = self._sample_points(xyz, feat)
         if self.normalize_pc:
-            pc = self._pc_norm(pc)
+            xyz = self._pc_norm(xyz)
 
         return {
-            "point_clouds": torch.from_numpy(pc.astype(np.float32)),
+            "xyz": torch.from_numpy(xyz.astype(np.float32)),
+            "feat": torch.from_numpy(feat.astype(np.float32)),
             "sample_token": sample_token,
             "question": prompt,
             "ground_truths": refs,
@@ -221,9 +223,11 @@ class NuScenesEvalDataset(Dataset):
 
 
 def eval_collate(batch):
-    point_clouds = torch.stack([x["point_clouds"] for x in batch], dim=0)
+    xyz = torch.stack([x["xyz"] for x in batch], dim=0)
+    feat = torch.stack([x["feat"] for x in batch], dim=0)
     return {
-        "point_clouds": point_clouds,
+        "xyz": xyz,
+        "feat": feat,
         "sample_token": [x["sample_token"] for x in batch],
         "question": [x["question"] for x in batch],
         "ground_truths": [x["ground_truths"] for x in batch],
@@ -390,15 +394,15 @@ def generate_predictions(model, dataloader, args):
     }
 
     for batch in tqdm(dataloader, desc="Generating"):
-        point_clouds = batch["point_clouds"].cuda()
+        xyz = batch["xyz"].cuda()
+        feat = batch["feat"].cuda()
         questions = [q if q else CAPTION_DEFAULT_PROMPT for q in batch["question"]]
         prompts = prepare_texts(questions, conv_temp)
 
         model.eval()
         with torch.inference_mode():
             answers = model.generate(
-                point_clouds,
-                prompts,
+                texts=prompts,
                 num_beams=args.num_beams,
                 max_new_tokens=args.max_new_tokens,
                 min_length=args.min_length,
@@ -407,6 +411,8 @@ def generate_predictions(model, dataloader, args):
                 length_penalty=args.length_penalty,
                 temperature=args.temperature,
                 do_sample=args.do_sample,
+                xyz=xyz,
+                feat=feat,
             )
 
         for sample_token, question, refs, output in zip(
@@ -442,10 +448,11 @@ def parse_args():
     parser.add_argument("--version", type=str, default="v1.0-trainval", help="nuScenes version")
 
     parser.add_argument("--pointnum", type=int, default=8192)
-    parser.add_argument("--normalize_pc", type=str2bool, default=True)
+    parser.add_argument("--normalize_pc", type=str2bool, default=False)
     parser.add_argument("--use_intensity", type=str2bool, default=True)
     parser.add_argument("--use_time_or_ring", type=str2bool, default=True)
     parser.add_argument("--return_dim", type=int, default=6)
+    parser.add_argument("--feat_mode", type=str, default="const_0p4")
 
     parser.add_argument("--batch_size", type=int, default=12)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -499,6 +506,7 @@ def main():
             use_intensity=args.use_intensity,
             use_time_or_ring=args.use_time_or_ring,
             return_dim=args.return_dim,
+            feat_mode=args.feat_mode,
         )
         dataloader = DataLoader(
             dataset,

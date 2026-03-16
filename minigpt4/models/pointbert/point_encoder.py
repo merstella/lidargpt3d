@@ -176,9 +176,14 @@ class PointTransformer(nn.Module):
 
 
 
-    def forward(self, pts):
+    def forward(self, pts=None, xyz=None, feat=None):
         # divide the point cloud in the same form. This is important
-        neighborhood, center = self.group_divider(pts)
+        if pts is not None:
+            neighborhood, center = self.group_divider(pts)
+        elif xyz is not None:
+            neighborhood, center = self.group_divider(xyz, feat)
+        else:
+            raise ValueError("PointTransformer.forward requires `pts` or `xyz` input.")
         # encoder the input cloud blocks
         group_input_tokens = self.encoder(neighborhood)  # B G N
         group_input_tokens = self.reduce_dim(group_input_tokens)

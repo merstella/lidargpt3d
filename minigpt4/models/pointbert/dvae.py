@@ -147,7 +147,7 @@ class Group(nn.Module):
         self.group_size = group_size
         # self.knn = KNN(k=self.group_size, transpose_mode=True)
 
-    def forward(self, xyz):
+    def forward(self, xyz, feat=None):
         '''
             input: B N 3
             ---------------------------
@@ -155,10 +155,12 @@ class Group(nn.Module):
             center : B G 3
         '''
         B, N, C = xyz.shape
-        if C > 3:
+        point_attr = feat
+        if point_attr is None and C > 3:
             data = xyz
-            xyz = data[:,:,:3]
-            rgb = data[:, :, 3:]
+            xyz = data[:, :, :3]
+            point_attr = data[:, :, 3:]
+            C = xyz.shape[-1]
         batch_size, num_points, _ = xyz.shape
         # fps the centers out
         center = misc.fps(xyz, self.num_group)  # B G 3
@@ -174,14 +176,14 @@ class Group(nn.Module):
 
         neighborhood_xyz = xyz.view(batch_size * num_points, -1)[idx, :]
         neighborhood_xyz = neighborhood_xyz.view(batch_size, self.num_group, self.group_size, 3).contiguous()
-        if C > 3:
-            neighborhood_rgb = rgb.view(batch_size * num_points, -1)[idx, :]
-            neighborhood_rgb = neighborhood_rgb.view(batch_size, self.num_group, self.group_size, -1).contiguous()
+        if point_attr is not None:
+            neighborhood_attr = point_attr.view(batch_size * num_points, -1)[idx, :]
+            neighborhood_attr = neighborhood_attr.view(batch_size, self.num_group, self.group_size, -1).contiguous()
 
         # normalize xyz 
         neighborhood_xyz = neighborhood_xyz - center.unsqueeze(2)
-        if C > 3:
-            neighborhood = torch.cat((neighborhood_xyz, neighborhood_rgb), dim=-1)
+        if point_attr is not None:
+            neighborhood = torch.cat((neighborhood_xyz, neighborhood_attr), dim=-1)
         else:
             neighborhood = neighborhood_xyz
         return neighborhood, center

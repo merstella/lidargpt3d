@@ -294,8 +294,15 @@ class MiniGPT_3D(MiniGPTBase):
 
         return Qformer, query_tokens
 
-    def encode_pc(self, pc):
-        device = pc.device
+    def encode_pc(self, pc=None, xyz=None, feat=None):
+        if pc is not None:
+            device = pc.device
+            encoder_inputs = {"pts": pc}
+        elif xyz is not None and feat is not None:
+            device = xyz.device
+            encoder_inputs = {"xyz": xyz, "feat": feat}
+        else:
+            raise ValueError("encode_pc requires either `pc` or both `xyz` and `feat`.")
 
         # Stage IV
         if self.use_MQE:
@@ -303,7 +310,7 @@ class MiniGPT_3D(MiniGPTBase):
             if self.router_type == 'Sparse Router':
                 with self.maybe_autocast():
 
-                    pc_feature = self.pc_encoder(pc)
+                    pc_feature = self.pc_encoder(**encoder_inputs)
 
                     # query expert router
                     pc_global_feature = torch.cat([pc_feature[:, 0], pc_feature[:, 1:].max(1)[0]], dim=-1)
@@ -373,13 +380,13 @@ class MiniGPT_3D(MiniGPTBase):
                     inputs_llama = self.llama_proj2(inputs_llama)
                     # Projector
 
-                    atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(pc.device)
+                    atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(device)
                 return inputs_llama, atts_llama
 
             elif self.router_type == 'Soft Router' or self.router_type == 'Constant Router':
                 with self.maybe_autocast():
 
-                    pc_feature = self.pc_encoder(pc)
+                    pc_feature = self.pc_encoder(**encoder_inputs)
 
                     # query expert router
                     pc_global_feature = torch.cat([pc_feature[:, 0], pc_feature[:, 1:].max(1)[0]], dim=-1)
@@ -431,7 +438,7 @@ class MiniGPT_3D(MiniGPTBase):
 
                     inputs_llama = self.llama_proj(query_output)
                     inputs_llama = self.llama_proj2(inputs_llama)
-                    atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(pc.device)
+                    atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(device)
                 return inputs_llama, atts_llama
 
         else:
@@ -439,7 +446,7 @@ class MiniGPT_3D(MiniGPTBase):
             with self.maybe_autocast():
 
                 # pc tokens
-                pc_embeds = self.point_2_Qformer_proj(self.pc_encoder(pc)).to(device)
+                pc_embeds = self.point_2_Qformer_proj(self.pc_encoder(**encoder_inputs)).to(device)
                 # pc tokens
 
                 # some values to Q-former
@@ -464,7 +471,7 @@ class MiniGPT_3D(MiniGPTBase):
                 inputs_llama = self.llama_proj2(inputs_llama)
                 # Projector
 
-                atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(pc.device)
+                atts_llama = torch.ones(inputs_llama.size()[:-1], dtype=torch.long).to(device)
 
             return inputs_llama, atts_llama
 

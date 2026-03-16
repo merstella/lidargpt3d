@@ -206,7 +206,9 @@ class MiniGPTBase(BaseModel):
 
         ####  test
         if 'pc' in samples:
-            pc_embeds, pc_atts = self.encode_pc(samples["pc"])
+            pc_embeds, pc_atts = self.encode_pc(pc=samples["pc"])
+        elif "xyz" in samples and "feat" in samples:
+            pc_embeds, pc_atts = self.encode_pc(xyz=samples["xyz"], feat=samples["feat"])
         else:
             pc_embeds = pc_atts = None
 
@@ -312,8 +314,8 @@ class MiniGPTBase(BaseModel):
     @torch.no_grad()
     def generate(
             self,
-            pc,
-            texts,
+            pc=None,
+            texts=None,
             num_beams=1,
             max_new_tokens=20,
             min_length=1,
@@ -323,6 +325,8 @@ class MiniGPTBase(BaseModel):
             temperature=1,
             do_sample=False,
             stop_words_ids=[2],
+            xyz=None,
+            feat=None,
     ):
         '''
             function for generate test use
@@ -331,7 +335,18 @@ class MiniGPTBase(BaseModel):
         stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(
             stops=[torch.tensor([i]).to(self.device) for i in stop_words_ids])])
 
-        pc_embeds, atts_pc = self.encode_pc(pc.to(self.device))
+        if texts is None:
+            raise ValueError("`texts` must be provided for generation.")
+
+        if pc is not None:
+            pc_embeds, atts_pc = self.encode_pc(pc=pc.to(self.device))
+        elif xyz is not None and feat is not None:
+            pc_embeds, atts_pc = self.encode_pc(
+                xyz=xyz.to(self.device),
+                feat=feat.to(self.device),
+            )
+        else:
+            raise ValueError("Provide either `pc` or both `xyz` and `feat`.")
         PointCloud_lists = [[PointCloud_emb[None]] for PointCloud_emb in pc_embeds]
 
         batch_embs = [self.get_context_emb(text, pc_list) for text, pc_list in zip(texts,PointCloud_lists)]

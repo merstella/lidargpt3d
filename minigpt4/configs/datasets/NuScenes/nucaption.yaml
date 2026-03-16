@@ -9,7 +9,8 @@ datasets:
       ann_path: ./ann/nucaption_train.jsonl
 
       pointnum: 8192
-      normalize_pc: true
+      normalize_pc: false
       use_intensity: true
       use_time_or_ring: true
       return_dim: 6
+      feat_mode: const_0p4
