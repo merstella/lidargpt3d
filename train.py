@@ -39,7 +39,7 @@ from minigpt4.tasks import *
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
 
-    parser.add_argument("--cfg-path", default='./train_configs/MiniGPT_3D/stage_1.yaml',
+    parser.add_argument("--cfg-path", default='./train_configs/LidarGPT/stage_1.yaml',
                         help="path to configuration file.")
     parser.add_argument(
         "--options",

@@ -43,6 +43,7 @@ class MiniGPT_3D(MiniGPTBase):
             device_8bit=0,  # the device of 8bit model should be set when loading and cannot be changed anymore.
             use_MQE=False,
             positional_enc=False,
+            use_positional_encoder=False,
             query_expert_num=8,  # work ony when use_MQE   is True
             query_expert_router_type='Sparse Router',  # Three types： Constant Router, Sparse Router,  Soft Router
             query_expert_top_k=2,  # the top_k number in 'Sparse Router'
@@ -130,7 +131,8 @@ class MiniGPT_3D(MiniGPTBase):
             self.llama_model.gradient_checkpointing_enable()
             
         # ================= Positional Encoding (Angle-based, 6 views) =================
-        self.positional_enc = positional_enc
+        self.use_positional_encoder = use_positional_encoder
+        self.positional_enc = positional_enc or use_positional_encoder
         if self.positional_enc:
             print('Use positional encoding (6-view angle based)')
 
@@ -228,57 +230,35 @@ class MiniGPT_3D(MiniGPTBase):
         ############### only Stage I ###
         
         ############### Stage 1.5 ################
+        if self.use_positional_encoder:
 
-        # if True:
+            for name, param in self.pc_encoder.named_parameters():
+                param.requires_grad = False
 
-        #     # --------------------------------------------------
-        #     # PC Encoder: freeze toàn bộ
-        #     # --------------------------------------------------
-        #     for name, param in self.pc_encoder.named_parameters():
-        #         param.requires_grad = False
+            for name, param in self.point_2_Qformer_proj.named_parameters():
+                param.requires_grad = True
 
-        #     # --------------------------------------------------
-        #     # MLP: point_2_Qformer_proj (train)
-        #     # --------------------------------------------------
-        #     for name, param in self.point_2_Qformer_proj.named_parameters():
-        #         param.requires_grad = True
+            self.angle_pos_embd.requires_grad = True
+            for name, param in self.angle_pos_proj.named_parameters():
+                param.requires_grad = True
 
-        #     # --------------------------------------------------
-        #     # 🔥 PC positional encoding (train)
-        #     # --------------------------------------------------
+            if hasattr(self.pc_encoder, "cls_pos") and self.pc_encoder.cls_pos is not None:
+                self.pc_encoder.cls_pos.requires_grad = True
 
-        #     # angle-based positional embedding
-        #     self.angle_pos_embd.requires_grad = True
+            for name, param in self.Qformer.named_parameters():
+                param.requires_grad = False
+            self.query_tokens.requires_grad = False
 
-        #     for name, param in self.angle_pos_proj.named_parameters():
-        #         param.requires_grad = True
+            for name, param in self.llama_proj.named_parameters():
+                param.requires_grad = False
+            for name, param in self.llama_proj2.named_parameters():
+                param.requires_grad = False
 
-        #     # cls positional embedding
-        #     self.pc_encoder.cls_pos.requires_grad = True
+            for name, param in self.llama_model.named_parameters():
+                param.requires_grad = False
 
-        #     # --------------------------------------------------
-        #     # QFormer: freeze
-        #     # --------------------------------------------------
-        #     for name, param in self.Qformer.named_parameters():
-        #         param.requires_grad = False
-        #     self.query_tokens.requires_grad = False
-
-        #     # --------------------------------------------------
-        #     # Projectors to LLM: freeze
-        #     # --------------------------------------------------
-        #     for name, param in self.llama_proj.named_parameters():
-        #         param.requires_grad = False
-        #     for name, param in self.llama_proj2.named_parameters():
-        #         param.requires_grad = False
-
-        #     # --------------------------------------------------
-        #     # LLM (Phi-2 + LoRA): freeze
-        #     # --------------------------------------------------
-        #     for name, param in self.llama_model.named_parameters():
-        #         param.requires_grad = False
-
-        #     print("Stage 1.5: train MLP (point_2_Qformer_proj) + PC positional encoding")
-        # ############### Stage 1.5 ################
+            print("Stage 1.5: train MLP (point_2_Qformer_proj) + PC positional encoding")
+        ############### Stage 1.5 ################
 
         
 
@@ -712,6 +692,7 @@ class MiniGPT_3D(MiniGPTBase):
         freeze_Qformer = cfg.get("freeze_Qformer", True)
         
         positional_enc = cfg.get("positional_enc", False)
+        use_positional_encoder = cfg.get("use_positional_encoder", False)
         pc_encoder_backend = cfg.get("pc_encoder_backend", "uni3d")
         uni3d_ckpt_path = cfg.get("uni3d_ckpt_path", "./minigpt4/models_new/uni3d/weights/uni3dtiny/model.pt")
         uni3d_timm_model = cfg.get("uni3d_timm_model", "eva02_tiny_patch14_224")
@@ -739,6 +720,7 @@ class MiniGPT_3D(MiniGPTBase):
             query_expert_top_k=query_expert_top_k,
             use_MQE=use_MQE,
             positional_enc=positional_enc,
+            use_positional_encoder=use_positional_encoder,
             only_train_MQE=only_train_MQE,
             QFormer_lora_module=QFormer_lora_module,
             pc_linear_layer=pc_linear_layer,

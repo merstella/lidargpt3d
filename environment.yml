@@ -115,6 +115,7 @@ dependencies:
       - networkx==3.2.1
       - nltk==3.8.1
       - numpy==1.26.2
+      - nuscenes-devkit==1.1.11
       - nvidia-cublas-cu11==11.10.3.66
       - nvidia-cuda-cupti-cu11==11.7.101
       - nvidia-cuda-nvrtc-cu11==11.7.99

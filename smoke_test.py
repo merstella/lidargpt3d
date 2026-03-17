@@ -79,7 +79,8 @@ def parse_args():
     parser.add_argument("--nusc-root", default=None, help="nuScenes root directory. Falls back to $NUSC_ROOT and common local paths.")
     parser.add_argument("--version", default="v1.0-trainval", help="nuScenes dataset version.")
     parser.add_argument("--pointnum", type=int, default=8192, help="Number of points to sample.")
-    parser.add_argument("--return-dim", type=int, default=6, help="Feature dimension returned by the dataset.")
+    parser.add_argument("--return-dim", type=int, default=6, help="Expected total point dimension across xyz+feat.")
+    parser.add_argument("--feat-mode", default="const_0p4", help="Feature construction mode for NuScenes dataset.")
     parser.add_argument("--view", action="store_true", help="Open an Open3D viewer for the sampled point cloud.")
     return parser.parse_args()
 
@@ -95,7 +96,22 @@ def load_nuscenes_dataset_class():
     return module.NuScenesPointCloudDataset
 
 
-def view_point_cloud(pc_tensor, sample_id):
+def split_point_sample(sample):
+    if "xyz" in sample and "feat" in sample:
+        xyz = sample["xyz"]
+        feat = sample["feat"]
+        return xyz, feat
+
+    if "pc" in sample:
+        pc = sample["pc"]
+        xyz = pc[:, :3]
+        feat = pc[:, 3:] if pc.shape[1] > 3 else None
+        return xyz, feat
+
+    raise KeyError("Sample must contain either `xyz`/`feat` or `pc`.")
+
+
+def view_point_cloud(xyz_tensor, feat_tensor, sample_id):
     try:
         import open3d as o3d
     except ImportError as exc:
@@ -103,11 +119,11 @@ def view_point_cloud(pc_tensor, sample_id):
             "Missing 'open3d'. Install it in the current environment or run without --view."
         ) from exc
 
-    pc = pc_tensor.cpu().numpy()
-    xyz = pc[:, :3]
+    xyz = xyz_tensor.cpu().numpy()
+    feat = feat_tensor.cpu().numpy() if feat_tensor is not None else None
 
-    if pc.shape[1] >= 4:
-        intensity = pc[:, 3]
+    if feat is not None and feat.shape[1] >= 1:
+        intensity = feat[:, 0]
         lo = float(intensity.min())
         hi = float(intensity.max())
         if hi > lo:
@@ -116,7 +132,7 @@ def view_point_cloud(pc_tensor, sample_id):
             scaled = np.full_like(intensity, 0.5, dtype=np.float32)
         colors = np.repeat(scaled[:, None], 3, axis=1)
     else:
-        colors = np.full((pc.shape[0], 3), 0.7, dtype=np.float32)
+        colors = np.full((xyz.shape[0], 3), 0.7, dtype=np.float32)
 
     geom = o3d.geometry.PointCloud()
     geom.points = o3d.utility.Vector3dVector(xyz.astype(np.float64))
@@ -174,20 +190,26 @@ def main():
         anno_path=str(ann_path),
         pointnum=args.pointnum,
         normalize_pc=True,
-        use_intensity=True,
-        use_time_or_ring=True,
-        return_dim=args.return_dim,
+        feat_mode=args.feat_mode,
     )
 
     sample = ds[0]
     print("Returned keys:", list(sample.keys()))
-    pc = sample["pc"]
-    print("pc dtype:", pc.dtype, "pc shape:", tuple(pc.shape))
+    xyz, feat = split_point_sample(sample)
+    total_dim = xyz.shape[1] + (0 if feat is None else feat.shape[1])
+    print("xyz dtype:", xyz.dtype, "xyz shape:", tuple(xyz.shape))
+    if feat is not None:
+        print("feat dtype:", feat.dtype, "feat shape:", tuple(feat.shape))
+    else:
+        print("feat: None")
+    print("total point dim:", total_dim)
     print("PC_id:", sample["PC_id"])
 
     assert "instruction_input" in sample and "answer" in sample, "Not single-turn format"
-    assert pc.ndim == 2 and pc.shape[0] == args.pointnum, "Unexpected point shape"
-    assert pc.shape[1] == args.return_dim, "Unexpected point feature dim"
+    assert xyz.ndim == 2 and xyz.shape == (args.pointnum, 3), "Unexpected xyz shape"
+    if feat is not None:
+        assert feat.ndim == 2 and feat.shape[0] == args.pointnum, "Unexpected feat shape"
+    assert total_dim == args.return_dim, "Unexpected total point feature dim"
 
     print("\n--- instruction_input (first 200 chars) ---")
     print(sample["instruction_input"][:200])
@@ -196,7 +218,7 @@ def main():
     print(sample["answer"][:200])
 
     if args.view:
-        view_point_cloud(pc, sample["PC_id"])
+        view_point_cloud(xyz, feat, sample["PC_id"])
 
     print("\n✅ Dataset smoke test passed for ds[0].")
 
